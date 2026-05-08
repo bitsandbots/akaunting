@@ -19,16 +19,6 @@ class Event extends Provider
     ];
 
     /**
-     * Register any events for your application.
-     *
-     * @return void
-     */
-    public function boot()
-    {
-        parent::boot();
-    }
-
-    /**
      * Determine if events and listeners should be automatically discovered.
      *
      * @return bool

@@ -39,9 +39,9 @@ class FinishInstallation
             $this->alias . '-coa'        => 'c,r,u,d',
             $this->alias . '-funds'      => 'c,r,u,d',
             $this->alias . '-programs'   => 'c,r,u,d',
-            $this->alias . '-functions'  => 'c,r,u,d',
-            $this->alias . '-journals'   => 'c,r,u,d',
-            $this->alias . '-periods'    => 'c,r,u,d',
+            $this->alias . '-functional-classes' => 'c,r,u,d',
+            $this->alias . '-journal-entries'   => 'c,r,u,d',
+            $this->alias . '-fiscal-periods'    => 'c,r,u,d',
             $this->alias . '-settings'   => 'r,u',
             $this->alias . '-reports'    => 'r',
         ]);
