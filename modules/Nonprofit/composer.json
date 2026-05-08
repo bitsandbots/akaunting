@@ -1,0 +1,21 @@
+{
+    "config": {
+        "autoloader-suffix": "nonprofit"
+    },
+    "name": "akaunting/module-nonprofit",
+    "description": "Nonprofit Accounting module for Akaunting",
+    "homepage": "https://akaunting.com",
+    "keywords": [
+        "laravel",
+        "accounting",
+        "nonprofit",
+        "akaunting",
+        "fund-accounting"
+    ],
+    "license": "GPL-3.0+",
+    "scripts": {
+        "test": [
+            "composer install --prefer-dist --no-interaction --no-scripts --no-suggest --no-progress --no-ansi"
+        ]
+    }
+}

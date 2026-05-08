@@ -1,0 +1,21 @@
+{
+    "alias": "nonprofit",
+    "icon": "hand-holding-heart",
+    "version": "1.0.0",
+    "active": 1,
+    "providers": [
+        "Modules\\Nonprofit\\Providers\\Event",
+        "Modules\\Nonprofit\\Providers\\Main",
+        "Modules\\Nonprofit\\Providers\\Observer"
+    ],
+    "aliases": {},
+    "files": [],
+    "requires": [],
+    "reports": [],
+    "widgets": [],
+    "settings": [],
+    "extra-modules": {},
+    "routes": {
+        "redirect_after_install": "nonprofit.settings.account-mappings.edit"
+    }
+}
