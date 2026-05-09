@@ -94,6 +94,19 @@ class JournalEntry extends Model
         static::updating(function (self $entry) {
             $original = $entry->getOriginal('status');
 
+            // Reaching 'reversed' is reserved for LedgerService::reverse() —
+            // it is the only path that wraps the update in withSanctionedReversal().
+            if (
+                $entry->isDirty('status')
+                && $entry->status === JournalEntryStatus::Reversed->value
+                && ! self::$sanctionedReversal
+            ) {
+                throw new \RuntimeException(trans(
+                    'nonprofit::general.cannot_modify_posted_journal_entry',
+                    ['id' => $entry->id]
+                ));
+            }
+
             if ($original === JournalEntryStatus::Draft->value) {
                 return;
             }
@@ -175,5 +188,10 @@ class JournalEntry extends Model
     public function isPosted(): bool
     {
         return $this->status === 'posted';
+    }
+
+    protected static function newFactory()
+    {
+        return \Modules\Nonprofit\Database\Factories\JournalEntry::new();
     }
 }
