@@ -2,6 +2,7 @@
 
 namespace Modules\Nonprofit\Services;
 
+use App\Traits\Currencies;
 use Illuminate\Support\Facades\DB;
 use Modules\Nonprofit\Enums\JournalEntryStatus;
 use Modules\Nonprofit\Exceptions\LedgerValidationException;
@@ -19,6 +20,8 @@ use Modules\Nonprofit\Models\JournalEntryLine;
  */
 class LedgerService
 {
+    use Currencies;
+
     /**
      * Rounding tolerance for balance comparisons (half a cent).
      */
@@ -195,11 +198,26 @@ class LedgerService
 
         $isIncome = $transaction->isIncome();
 
+        // FX: transaction.amount is in transaction.currency_code. The ledger stores
+        // the base/default-currency amount in debit_amount/credit_amount and the
+        // original foreign amount in debit_foreign/credit_foreign. When the txn is
+        // already in the default currency, foreign == base.
+        $foreignAmount = (float) $transaction->amount;
+        $currencyCode  = $transaction->currency_code ?? default_currency();
+        $currencyRate  = (float) ($transaction->currency_rate ?? 1.0);
+        $baseAmount    = $currencyCode === default_currency()
+            ? $foreignAmount
+            : (float) $this->convertToDefault($foreignAmount, $currencyCode, $currencyRate);
+
         $lines = [
             [
                 'chart_of_account_id' => $coaId,
-                'debit_amount'        => $isIncome ? 0.0 : $transaction->amount,
-                'credit_amount'       => $isIncome ? $transaction->amount : 0.0,
+                'debit_amount'        => $isIncome ? 0.0 : $baseAmount,
+                'credit_amount'       => $isIncome ? $baseAmount : 0.0,
+                'debit_foreign'       => $isIncome ? 0.0 : $foreignAmount,
+                'credit_foreign'      => $isIncome ? $foreignAmount : 0.0,
+                'currency_code'       => $currencyCode,
+                'currency_rate'       => $currencyRate,
                 'description'         => $transaction->description,
             ],
             [
@@ -210,9 +228,13 @@ class LedgerService
                     $companyId,
                     true // force fallback if not found
                 ),
-                'debit_amount'  => $isIncome ? $transaction->amount : 0.0,
-                'credit_amount' => $isIncome ? 0.0 : $transaction->amount,
-                'description'   => $transaction->description ? "Counterpart: {$transaction->description}" : 'Counterpart entry',
+                'debit_amount'   => $isIncome ? $baseAmount : 0.0,
+                'credit_amount'  => $isIncome ? 0.0 : $baseAmount,
+                'debit_foreign'  => $isIncome ? $foreignAmount : 0.0,
+                'credit_foreign' => $isIncome ? 0.0 : $foreignAmount,
+                'currency_code'  => $currencyCode,
+                'currency_rate'  => $currencyRate,
+                'description'    => $transaction->description ? "Counterpart: {$transaction->description}" : 'Counterpart entry',
             ],
         ];
 
@@ -235,8 +257,8 @@ class LedgerService
                 : $transaction->paid_at,
             'description'   => $transaction->description ?? 'Auto-posted from transaction #' . $transaction->id,
             'reference'     => $transaction->number ?? null,
-            'currency_code' => $transaction->currency_code ?? 'USD',
-            'currency_rate' => $transaction->currency_rate ?? 1.0,
+            'currency_code' => $currencyCode,
+            'currency_rate' => $currencyRate,
             'transaction_id' => $transaction->id,
             'lines'          => $lines,
         ], $companyId);
@@ -426,6 +448,23 @@ class LedgerService
                 $totalDebit,
                 $totalCredit,
                 abs($totalDebit - $totalCredit)
+            );
+        }
+
+        // Rule 4a: Every line must reference a fund. Without fund_id the per-fund
+        // balance check below cannot run, and reports cannot attribute the line.
+        // DimensionResolver fills defaults via post(), but validate() is also a
+        // public entry point — guard it explicitly with a named error code.
+        foreach ($lines as $i => $line) {
+            if (empty($line['fund_id'])) {
+                $errors["fund_required_{$i}"] = "Line {$i}: fund_id is required.";
+            }
+        }
+
+        if (! empty($errors)) {
+            throw new LedgerValidationException(
+                'Journal entry validation failed. See errors for details.',
+                $errors
             );
         }
 
