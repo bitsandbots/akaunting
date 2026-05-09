@@ -9,6 +9,27 @@ use Modules\Nonprofit\Models\FunctionalClass;
 class FunctionalClassSeeder extends Seeder
 {
     /**
+     * Optional company ID set programmatically (e.g., during module installation).
+     *
+     * @var int|null
+     */
+    private ?int $companyId = null;
+
+    /**
+     * Set the company ID before calling run() when not invoked via Artisan command.
+     *
+     * @param int $companyId
+     *
+     * @return $this
+     */
+    public function setCompanyId(int $companyId): self
+    {
+        $this->companyId = $companyId;
+
+        return $this;
+    }
+
+    /**
      * System functional classes always seeded per company.
      * Uses firstOrCreate for idempotency.
      */
@@ -35,7 +56,7 @@ class FunctionalClassSeeder extends Seeder
      */
     public function run(): void
     {
-        $companyId = $this->command->argument('company');
+        $companyId = $this->companyId ?? $this->command->argument('company');
 
         foreach (static::$systemClasses as $data) {
             FunctionalClass::firstOrCreate(

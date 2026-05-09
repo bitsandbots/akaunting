@@ -62,14 +62,17 @@ class FinishInstallation
 
         // Seed functional expense classifications.
         $seeder = new \Modules\Nonprofit\Database\Seeders\FunctionalClassSeeder();
-        $seeder->run($companyId);
+        $seeder->setCompanyId($companyId);
+        $seeder->run();
 
         // Seed system general fund (Unrestricted).
         $seeder = new \Modules\Nonprofit\Database\Seeders\SystemFundSeeder();
-        $seeder->run($companyId);
+        $seeder->setCompanyId($companyId);
+        $seeder->run();
 
         // Seed suspense account for unmapped transactions.
         $seeder = new \Modules\Nonprofit\Database\Seeders\SuspenseAccountSeeder();
-        $seeder->run($companyId);
+        $seeder->setCompanyId($companyId);
+        $seeder->run();
     }
 }

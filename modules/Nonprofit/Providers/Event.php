@@ -21,17 +21,6 @@ class Event extends Provider
         \App\Events\Menu\AdminCreated::class => [
             \Modules\Nonprofit\Listeners\Menu\Admin::class,
         ],
-
-        // Transaction bridge -> double-entry ledger
-        \App\Events\Banking\TransactionCreated::class => [
-            \Modules\Nonprofit\Listeners\PostToLedger::class . '@onTransactionCreated',
-        ],
-        \App\Events\Banking\TransactionUpdated::class => [
-            \Modules\Nonprofit\Listeners\PostToLedger::class . '@onTransactionUpdated',
-        ],
-        \App\Events\Banking\TransactionDeleted::class => [
-            \Modules\Nonprofit\Listeners\PostToLedger::class . '@onTransactionDeleted',
-        ],
     ];
 
     /**
@@ -50,18 +39,6 @@ class Event extends Provider
      */
     public function shouldDiscoverEvents()
     {
-        return true;
-    }
-
-    /**
-     * Get the listener directories that should be used to discover events.
-     *
-     * @return array
-     */
-    protected function discoverEventsWithin()
-    {
-        return [
-            __DIR__ . '/../Listeners',
-        ];
+        return false;
     }
 }

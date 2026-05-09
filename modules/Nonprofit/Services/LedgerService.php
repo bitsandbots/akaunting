@@ -290,8 +290,18 @@ class LedgerService
             return $this->getSuspenseAccountId($companyId);
         }
 
-        // TODO: Replace with a real category-to-COA mapping table lookup.
-        // For now, always returns suspense — the mapping table is a future deliverable.
+        // Check user-configured account mappings from settings page.
+        $mappings = setting('nonprofit.account_mappings', []);
+
+        if (isset($mappings[$categoryId])) {
+            $coa = ChartOfAccount::find($mappings[$categoryId]);
+
+            if ($coa && $coa->enabled) {
+                return $coa->id;
+            }
+        }
+
+        // Fall back to suspense account when no mapping is configured.
         return $this->getSuspenseAccountId($companyId);
     }
 
