@@ -6,6 +6,7 @@ use App\Abstracts\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Nonprofit\Enums\JournalEntryStatus;
 
 class JournalEntry extends Model
 {
@@ -53,36 +54,65 @@ class JournalEntry extends Model
      *
      * @return void
      */
+    /**
+     * Set inside withSanctionedReversal() to allow exactly one transition —
+     * posted → reversed — to bypass the immutability guard. Any other update
+     * attempt against a non-draft entry must throw.
+     */
+    protected static bool $sanctionedReversal = false;
+
+    /**
+     * Run a closure with the sanctioned-reversal bypass enabled. Only
+     * LedgerService::reverse() should call this; it ring-fences the single
+     * legal mutation against a posted entry (the link + status flip that
+     * records its reversal).
+     */
+    public static function withSanctionedReversal(\Closure $callback): mixed
+    {
+        $previous = self::$sanctionedReversal;
+        self::$sanctionedReversal = true;
+
+        try {
+            return $callback();
+        } finally {
+            self::$sanctionedReversal = $previous;
+        }
+    }
+
     protected static function booted(): void
     {
         static::deleting(function (self $entry) {
-            if ($entry->status !== 'draft') {
+            if ($entry->status !== JournalEntryStatus::Draft->value) {
                 throw new \RuntimeException(trans('nonprofit::general.cannot_delete_posted_journal_entry'));
             }
         });
 
-        // Posted entries are immutable except for status transitions
-        // (posted→reversed/voided) and the audit columns that record those.
-        // The financial fields — entry_date, currency, lines, etc. — must
-        // never change after posting; auditors require frozen books.
+        // Spec validation rule 8: posted entries are read-only; the only legal
+        // mutation is the posted→reversed transition produced by
+        // LedgerService::reverse(), which routes through withSanctionedReversal().
+        // Reversed and void are terminal — no further updates of any kind.
         static::updating(function (self $entry) {
-            if ($entry->getOriginal('status') === 'draft') {
+            $original = $entry->getOriginal('status');
+
+            if ($original === JournalEntryStatus::Draft->value) {
                 return;
             }
 
-            $allowed = [
-                'status',
-                'reversed_by_entry_id',
-                'updated_by',
-                'updated_at',
-            ];
+            if (in_array($original, [JournalEntryStatus::Reversed->value, JournalEntryStatus::Void->value], true)) {
+                throw new \RuntimeException(trans(
+                    'nonprofit::general.cannot_modify_terminal_journal_entry',
+                    ['id' => $entry->id, 'status' => $original]
+                ));
+            }
 
-            $changed = array_diff(array_keys($entry->getDirty()), $allowed);
+            // original === posted — only the sanctioned posted→reversed flip is legal.
+            $isReversal = self::$sanctionedReversal
+                && $entry->status === JournalEntryStatus::Reversed->value;
 
-            if (! empty($changed)) {
+            if (! $isReversal) {
                 throw new \RuntimeException(trans(
                     'nonprofit::general.cannot_modify_posted_journal_entry',
-                    ['fields' => implode(', ', $changed)]
+                    ['id' => $entry->id]
                 ));
             }
         });

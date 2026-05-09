@@ -317,15 +317,16 @@ class LedgerService
             'lines'           => $lines,
         ], $entry->company_id);
 
-        // Link the original entry to its reversal.
-        $entry->update([
-            'reversed_by_entry_id' => $reversal->id,
-        ]);
-
-        // Update original entry status.
-        $entry->update([
-            'status' => JournalEntryStatus::Reversed->value,
-        ]);
+        // The original entry is posted and therefore immutable to outside
+        // callers. The sanctioned bypass scopes a single update that records
+        // its reversal (link + status flip) without firing the saving event
+        // twice. See JournalEntry::withSanctionedReversal().
+        JournalEntry::withSanctionedReversal(function () use ($entry, $reversal) {
+            $entry->update([
+                'reversed_by_entry_id' => $reversal->id,
+                'status'               => JournalEntryStatus::Reversed->value,
+            ]);
+        });
 
         return $reversal;
     }
