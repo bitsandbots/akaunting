@@ -60,6 +60,32 @@ class JournalEntry extends Model
                 throw new \RuntimeException(trans('nonprofit::general.cannot_delete_posted_journal_entry'));
             }
         });
+
+        // Posted entries are immutable except for status transitions
+        // (posted→reversed/voided) and the audit columns that record those.
+        // The financial fields — entry_date, currency, lines, etc. — must
+        // never change after posting; auditors require frozen books.
+        static::updating(function (self $entry) {
+            if ($entry->getOriginal('status') === 'draft') {
+                return;
+            }
+
+            $allowed = [
+                'status',
+                'reversed_by_entry_id',
+                'updated_by',
+                'updated_at',
+            ];
+
+            $changed = array_diff(array_keys($entry->getDirty()), $allowed);
+
+            if (! empty($changed)) {
+                throw new \RuntimeException(trans(
+                    'nonprofit::general.cannot_modify_posted_journal_entry',
+                    ['fields' => implode(', ', $changed)]
+                ));
+            }
+        });
     }
 
     public function transaction(): BelongsTo

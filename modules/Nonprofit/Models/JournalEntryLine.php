@@ -43,6 +43,29 @@ class JournalEntryLine extends Model
         'description',
     ];
 
+    /**
+     * Lines inherit the parent entry's mutability: once the JournalEntry
+     * leaves draft status, its lines are frozen for both updates and deletes.
+     * Without this guard, a posted entry could be silently rewritten by
+     * touching its lines directly, defeating the audit trail.
+     */
+    protected static function booted(): void
+    {
+        $guard = function (self $line, string $verb) {
+            $entry = $line->journalEntry()->first();
+
+            if ($entry && $entry->status !== 'draft') {
+                throw new \RuntimeException(trans(
+                    'nonprofit::general.cannot_modify_posted_journal_entry_line',
+                    ['verb' => $verb, 'status' => $entry->status]
+                ));
+            }
+        };
+
+        static::updating(fn (self $line) => $guard($line, 'update'));
+        static::deleting(fn (self $line) => $guard($line, 'delete'));
+    }
+
     public function journalEntry(): BelongsTo
     {
         return $this->belongsTo(JournalEntry::class, 'journal_entry_id');

@@ -95,6 +95,8 @@ return [
     'cannot_delete_system_row'               => 'System rows cannot be deleted.',
     'cannot_delete_system_functional_class' => 'System functional classes cannot be deleted.',
     'cannot_delete_posted_journal_entry' => 'Posted journal entries cannot be deleted. Reverse them instead.',
+    'cannot_modify_posted_journal_entry' => 'Posted journal entries are immutable. Disallowed fields: :fields.',
+    'cannot_modify_posted_journal_entry_line' => 'Cannot :verb a journal entry line: parent entry is :status.',
     'entry_balanced'             => 'Debits equal credits.',
     'entry_not_balanced'         => 'Journal entry is not balanced.',
     'min_two_lines'              => 'At least 2 lines are required.',
