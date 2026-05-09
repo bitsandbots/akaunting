@@ -31,6 +31,12 @@ class LedgerService
     protected DimensionResolver $dimensionResolver;
 
     /**
+     * Transaction ID currently being posted, used to enrich the
+     * LedgerSuspensePosted event payload. Null outside postFromTransaction().
+     */
+    protected ?int $currentTransactionId = null;
+
+    /**
      * Constructor.
      *
      * @param EntryNumberGenerator|null $numberGenerator
@@ -165,6 +171,17 @@ class LedgerService
      * @return JournalEntry|null Returns null when the transaction has no category_id to map.
      */
     public function postFromTransaction($transaction): ?JournalEntry
+    {
+        $this->currentTransactionId = $transaction->id;
+
+        try {
+            return $this->doPostFromTransaction($transaction);
+        } finally {
+            $this->currentTransactionId = null;
+        }
+    }
+
+    protected function doPostFromTransaction($transaction): ?JournalEntry
     {
         $companyId = $transaction->company_id;
 
@@ -350,7 +367,16 @@ class LedgerService
         }
 
         // Fall back to suspense account when no mapping is configured.
-        return $this->getSuspenseAccountId($companyId);
+        $suspenseId = $this->getSuspenseAccountId($companyId);
+
+        \Modules\Nonprofit\Events\LedgerSuspensePosted::dispatch(
+            $companyId,
+            $categoryId,
+            $suspenseId,
+            $this->currentTransactionId,
+        );
+
+        return $suspenseId;
     }
 
     // ------------------------------------------------------------------
