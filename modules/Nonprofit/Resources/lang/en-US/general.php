@@ -43,6 +43,7 @@ return [
     'period_status'          => 'Status',
     'period_closed_at'       => 'Closed At',
     'period_closed_by'       => 'Closed By',
+    'period_overlap_error'   => 'This period\'s date range overlaps with an existing fiscal period.',
 
     // Journal Entries
     'journal_entry'          => 'Journal Entry|Journal Entries',
@@ -91,7 +92,8 @@ return [
     'transaction_id'         => 'Source Transaction',
 
     // Validation
-    'cannot_delete_system_row'   => 'System rows cannot be deleted.',
+    'cannot_delete_system_row'               => 'System rows cannot be deleted.',
+    'cannot_delete_system_functional_class' => 'System functional classes cannot be deleted.',
     'cannot_delete_posted_journal_entry' => 'Posted journal entries cannot be deleted. Reverse them instead.',
     'entry_balanced'             => 'Debits equal credits.',
     'entry_not_balanced'         => 'Journal entry is not balanced.',

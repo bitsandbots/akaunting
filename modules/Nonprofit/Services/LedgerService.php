@@ -107,6 +107,54 @@ class LedgerService
     }
 
     /**
+     * Post an existing draft journal entry in-place, preserving its ID.
+     *
+     * Validates the entry's lines and period, generates a permanent entry
+     * number, and upgrades the status from draft to posted. Use this when
+     * a user explicitly posts a saved draft from the UI.
+     *
+     * @param JournalEntry $entry A draft entry with lines already loaded.
+     *
+     * @return JournalEntry The same entry, now posted.
+     *
+     * @throws LedgerValidationException When any validation rule fails.
+     * @throws \Modules\Nonprofit\Exceptions\PeriodClosedException When no open period covers entry_date.
+     */
+    public function postExisting(JournalEntry $entry): JournalEntry
+    {
+        $lines = $entry->lines->map(function (JournalEntryLine $line) {
+            return [
+                'chart_of_account_id' => $line->chart_of_account_id,
+                'debit_amount'        => $line->debit_amount,
+                'credit_amount'       => $line->credit_amount,
+                'debit_foreign'       => $line->debit_foreign,
+                'credit_foreign'      => $line->credit_foreign,
+                'currency_code'       => $line->currency_code,
+                'currency_rate'       => $line->currency_rate,
+                'fund_id'             => $line->fund_id,
+                'program_id'          => $line->program_id,
+                'functional_class_id' => $line->functional_class_id,
+                'description'         => $line->description,
+            ];
+        })->all();
+
+        $entryDate = $entry->entry_date instanceof \DateTime
+            ? $entry->entry_date->format('Y-m-d')
+            : $entry->entry_date;
+
+        $this->validate($lines, $entryDate, $entry->company_id);
+
+        $entry->update([
+            'entry_number' => $this->numberGenerator->next($entry->company_id),
+            'status'       => JournalEntryStatus::Posted->value,
+            'posted_at'    => now(),
+            'posted_by'    => user_id(),
+        ]);
+
+        return $entry->fresh()->load('lines');
+    }
+
+    /**
      * Bridge: map an Akaunting Transaction to a journal entry and post it.
      *
      * Resolves COA accounts from the transaction's categories (income/expense),
@@ -321,7 +369,7 @@ class LedgerService
      * @throws LedgerValidationException When any rule fails.
      * @throws \Modules\Nonprofit\Exceptions\PeriodClosedException When no open period.
      */
-    protected function validate(array $lines, string $entryDate, int $companyId): void
+    public function validate(array $lines, string $entryDate, int $companyId): void
     {
         $errors = [];
 

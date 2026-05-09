@@ -45,10 +45,12 @@ class DimensionDefaults extends Controller
      */
     public function update()
     {
+        $company_id = company_id();
+
         $data = request()->validate([
-            'default_fund_id'            => 'nullable|exists:funds,id',
-            'default_program_id'         => 'nullable|exists:programs,id',
-            'default_functional_class_id' => 'nullable|exists:functional_classes,id',
+            'default_fund_id'            => 'nullable|exists:funds,id,company_id,' . $company_id,
+            'default_program_id'         => 'nullable|exists:programs,id,company_id,' . $company_id,
+            'default_functional_class_id' => 'nullable|exists:functional_classes,id,company_id,' . $company_id,
         ]);
 
         setting(['nonprofit.dimension_defaults' => $data]);

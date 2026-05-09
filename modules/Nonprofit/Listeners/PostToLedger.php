@@ -77,7 +77,18 @@ class PostToLedger
             // Regenerate lines for the draft to match the updated transaction.
             $existingEntry->lines()->delete();
 
-            $this->rebuildLinesFromTransaction($existingEntry, $transaction);
+            try {
+                $this->rebuildLinesFromTransaction($existingEntry, $transaction);
+            } catch (\Modules\Nonprofit\Exceptions\LedgerValidationException $e) {
+                logger()->warning('PostToLedger: Draft rebuild validation failed.', [
+                    'journal_entry_id' => $existingEntry->id,
+                    'errors'           => $e->getErrors(),
+                ]);
+            } catch (\Modules\Nonprofit\Exceptions\PeriodClosedException $e) {
+                logger()->warning('PostToLedger: No open period for draft rebuild.', [
+                    'journal_entry_id' => $existingEntry->id,
+                ]);
+            }
             return;
         }
 
@@ -170,6 +181,9 @@ class PostToLedger
      * Rebuild journal entry lines from the updated transaction data
      * without posting (keeps the entry in draft status).
      *
+     * Includes dimension data from TransactionDimension records and
+     * validates the resulting lines for balance and period openness.
+     *
      * @param  JournalEntry  $entry
      * @param  \App\Models\Banking\Transaction  $transaction
      * @return void
@@ -186,42 +200,69 @@ class PostToLedger
             true
         );
 
-        $lines = [
+        // Collect dimension data from the transaction, if available.
+        $dims = ['fund_id' => null, 'program_id' => null, 'functional_class_id' => null];
+        if (method_exists($transaction, 'dimensions')) {
+            $dimModel = $transaction->dimensions()->first();
+            if ($dimModel) {
+                $dims['fund_id'] = $dimModel->fund_id;
+                $dims['program_id'] = $dimModel->program_id;
+                $dims['functional_class_id'] = $dimModel->functional_class_id;
+            }
+        }
+
+        // Build line arrays for validation (same shape as postFromTransaction).
+        $lineData = [
             [
-                'company_id'          => $companyId,
                 'chart_of_account_id' => $coaId,
                 'debit_amount'        => $isIncome ? 0.0 : $transaction->amount,
                 'credit_amount'       => $isIncome ? $transaction->amount : 0.0,
                 'debit_foreign'       => $isIncome ? 0.0 : $transaction->amount,
                 'credit_foreign'      => $isIncome ? $transaction->amount : 0.0,
-                'currency_code'       => $transaction->currency_code ?? 'USD',
-                'currency_rate'       => $transaction->currency_rate ?? 1.0,
-                'description'         => $transaction->description,
+                'fund_id'             => $dims['fund_id'],
+                'program_id'          => $dims['program_id'],
+                'functional_class_id' => $dims['functional_class_id'],
             ],
             [
-                'company_id'          => $companyId,
                 'chart_of_account_id' => $counterpartyId,
                 'debit_amount'        => $isIncome ? $transaction->amount : 0.0,
                 'credit_amount'       => $isIncome ? 0.0 : $transaction->amount,
                 'debit_foreign'       => $isIncome ? $transaction->amount : 0.0,
                 'credit_foreign'      => $isIncome ? 0.0 : $transaction->amount,
-                'currency_code'       => $transaction->currency_code ?? 'USD',
-                'currency_rate'       => $transaction->currency_rate ?? 1.0,
-                'description'         => $transaction->description
-                    ? "Counterpart: {$transaction->description}"
-                    : 'Counterpart entry',
+                'fund_id'             => $dims['fund_id'],
+                'program_id'          => $dims['program_id'],
+                'functional_class_id' => $dims['functional_class_id'],
             ],
         ];
 
-        foreach ($lines as $line) {
-            $entry->lines()->create($line);
+        // Validate before persisting.
+        $entryDate = $transaction->paid_at instanceof \DateTime
+            ? $transaction->paid_at->format('Y-m-d')
+            : ($transaction->paid_at ?? now()->format('Y-m-d'));
+
+        $this->ledger->validate($lineData, $entryDate, $companyId);
+
+        // Persist lines with full dimension metadata.
+        foreach ($lineData as $line) {
+            $entry->lines()->create([
+                'company_id'          => $companyId,
+                'chart_of_account_id' => $line['chart_of_account_id'],
+                'debit_amount'        => $line['debit_amount'],
+                'credit_amount'       => $line['credit_amount'],
+                'debit_foreign'       => $line['debit_foreign'],
+                'credit_foreign'      => $line['credit_foreign'],
+                'currency_code'       => $transaction->currency_code ?? 'USD',
+                'currency_rate'       => $transaction->currency_rate ?? 1.0,
+                'fund_id'             => $line['fund_id'],
+                'program_id'          => $line['program_id'],
+                'functional_class_id' => $line['functional_class_id'],
+                'description'         => $transaction->description,
+            ]);
         }
 
         // Update entry metadata to match the transaction.
         $entry->update([
-            'entry_date'    => $transaction->paid_at instanceof \DateTime
-                ? $transaction->paid_at->format('Y-m-d')
-                : ($transaction->paid_at ?? now()->format('Y-m-d')),
+            'entry_date'    => $entryDate,
             'description'   => $transaction->description ?? 'Auto-posted from transaction #' . $transaction->id,
             'reference'     => $transaction->number ?? null,
             'currency_code' => $transaction->currency_code ?? 'USD',

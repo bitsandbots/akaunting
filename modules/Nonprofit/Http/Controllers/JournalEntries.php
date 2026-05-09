@@ -21,6 +21,10 @@ class JournalEntries extends Controller
         parent::__construct();
 
         $this->ledgerService = $ledgerService;
+
+        // Extra actions not covered by auto-generated CRUD middleware.
+        $this->middleware('permission:update-nonprofit-journal-entries')->only(['post', 'void']);
+        $this->middleware('permission:create-nonprofit-journal-entries')->only(['reverse']);
     }
 
     /**
@@ -340,37 +344,11 @@ class JournalEntries extends Controller
     protected function postEntry(JournalEntry $journalEntry): \Illuminate\Http\RedirectResponse
     {
         try {
-            // Rebuild lines array for the ledger service
-            $lines = $journalEntry->lines->map(function ($line) {
-                return [
-                    'chart_of_account_id'  => $line->chart_of_account_id,
-                    'debit_amount'         => $line->debit_amount,
-                    'credit_amount'        => $line->credit_amount,
-                    'fund_id'              => $line->fund_id,
-                    'program_id'           => $line->program_id,
-                    'functional_class_id'  => $line->functional_class_id,
-                    'description'          => $line->description,
-                ];
-            })->all();
-
-            $newEntry = $this->ledgerService->post([
-                'entry_date'    => $journalEntry->entry_date->format('Y-m-d'),
-                'description'   => $journalEntry->description,
-                'reference'     => $journalEntry->reference,
-                'currency_code' => $journalEntry->currency_code,
-                'currency_rate' => $journalEntry->currency_rate,
-                'posted_by'     => user_id(),
-                'created_by'    => $journalEntry->created_by,
-                'lines'         => $lines,
-            ], company_id());
-
-            // Soft-delete the old draft and update relationships
-            $journalEntry->lines()->delete();
-            $journalEntry->delete();
+            $this->ledgerService->postExisting($journalEntry->load('lines'));
 
             flash(trans('nonprofit::general.posted_success'))->success();
 
-            return redirect()->route('nonprofit.journal-entries.show', $newEntry->id);
+            return redirect()->route('nonprofit.journal-entries.show', $journalEntry->id);
         } catch (\Modules\Nonprofit\Exceptions\LedgerValidationException $e) {
             flash($e->getMessage())->error();
 

@@ -45,6 +45,12 @@ class FinishInstallation
             $this->alias . '-fiscal-periods'    => 'c,r,u,d',
             $this->alias . '-settings'   => 'r,u',
             $this->alias . '-reports'    => 'r',
+            // Scope-specific keys for settings sub-controllers.
+            // assignPermissionsToController() produces e.g.
+            // 'nonprofit-settings-account-mappings', so we must
+            // register those granular keys.
+            $this->alias . '-settings-account-mappings'  => 'r,u',
+            $this->alias . '-settings-dimension-defaults' => 'r,u',
         ]);
     }
 
