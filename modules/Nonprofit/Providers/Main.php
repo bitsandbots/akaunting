@@ -2,7 +2,9 @@
 
 namespace Modules\Nonprofit\Providers;
 
+use App\Models\Banking\Transaction;
 use Illuminate\Support\ServiceProvider as Provider;
+use Modules\Nonprofit\Models\TransactionDimension;
 
 class Main extends Provider
 {
@@ -16,6 +18,20 @@ class Main extends Provider
         $this->loadTranslations();
         $this->loadViews();
         $this->loadMigrations();
+        $this->registerTransactionRelations();
+    }
+
+    /**
+     * Attach a hasMany 'dimensions' relation to the core Transaction model
+     * at runtime so the module never has to edit core files. Uninstalling
+     * the module unbinds the closure and the relation disappears cleanly.
+     */
+    protected function registerTransactionRelations(): void
+    {
+        Transaction::resolveRelationUsing('dimensions', function (Transaction $transaction) {
+            return $transaction->hasMany(TransactionDimension::class, 'transaction_id')
+                ->orderBy('sort_order');
+        });
     }
 
     /**
