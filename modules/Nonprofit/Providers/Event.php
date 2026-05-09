@@ -12,10 +12,35 @@ class Event extends Provider
      * @var array<class-string, array<int, class-string>>
      */
     protected $listen = [
+        // Module lifecycle
         \App\Events\Module\Installed::class => [
             \Modules\Nonprofit\Listeners\FinishInstallation::class,
         ],
-        // Menu integration will be added in a later task.
+
+        // Admin menu integration
+        \App\Events\Menu\AdminCreated::class => [
+            \Modules\Nonprofit\Listeners\Menu\Admin::class,
+        ],
+
+        // Transaction bridge -> double-entry ledger
+        \App\Events\Banking\TransactionCreated::class => [
+            \Modules\Nonprofit\Listeners\PostToLedger::class . '@onTransactionCreated',
+        ],
+        \App\Events\Banking\TransactionUpdated::class => [
+            \Modules\Nonprofit\Listeners\PostToLedger::class . '@onTransactionUpdated',
+        ],
+        \App\Events\Banking\TransactionDeleted::class => [
+            \Modules\Nonprofit\Listeners\PostToLedger::class . '@onTransactionDeleted',
+        ],
+    ];
+
+    /**
+     * The subscriber classes to register.
+     *
+     * @var array
+     */
+    protected $subscribe = [
+        \Modules\Nonprofit\Listeners\PostToLedger::class,
     ];
 
     /**

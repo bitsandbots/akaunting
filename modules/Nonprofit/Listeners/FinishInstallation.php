@@ -24,6 +24,7 @@ class FinishInstallation
         }
 
         $this->updatePermissions();
+        $this->runSeeders();
     }
 
     /**
@@ -45,5 +46,30 @@ class FinishInstallation
             $this->alias . '-settings'   => 'r,u',
             $this->alias . '-reports'    => 'r',
         ]);
+    }
+
+    /**
+     * Run required seeders during module installation.
+     *
+     * Seeds the functional expense classifications (FASB/SFAS 117),
+     * system general fund (code 0001), and suspense account (code 9999).
+     *
+     * @return void
+     */
+    protected function runSeeders()
+    {
+        $companyId = company_id();
+
+        // Seed functional expense classifications.
+        $seeder = new \Modules\Nonprofit\Database\Seeders\FunctionalClassSeeder();
+        $seeder->run($companyId);
+
+        // Seed system general fund (Unrestricted).
+        $seeder = new \Modules\Nonprofit\Database\Seeders\SystemFundSeeder();
+        $seeder->run($companyId);
+
+        // Seed suspense account for unmapped transactions.
+        $seeder = new \Modules\Nonprofit\Database\Seeders\SuspenseAccountSeeder();
+        $seeder->run($companyId);
     }
 }
