@@ -26,7 +26,6 @@ class FiscalPeriod extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'closed_at' => 'datetime',
-        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -38,6 +37,16 @@ class FiscalPeriod extends Model
         'end_date',
         'status',
     ];
+
+    protected static function booted(): void
+    {
+        static::deleting(function (self $period) {
+            throw new \RuntimeException(
+                'Fiscal periods are append-only audit objects and cannot be deleted. '
+                . 'Use PeriodGuard::reopen() to flip status to open.'
+            );
+        });
+    }
 
     public function closedBy(): BelongsTo
     {

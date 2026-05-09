@@ -23,7 +23,6 @@ return new class extends Migration
             $table->dateTime('closed_at')->nullable();
             $table->unsignedInteger('closed_by')->nullable();
             $table->timestamps();
-            $table->softDeletes();
 
             $table->foreign('company_id')
                 ->references('id')
